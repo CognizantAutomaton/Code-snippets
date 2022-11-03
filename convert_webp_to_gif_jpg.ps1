@@ -9,14 +9,24 @@ $imgs = @(@(Get-ChildItem -Filter "*.webp" -LiteralPath $PathToProcess) | Where-
 
 function Test-IsWebPAnimated([Parameter(Mandatory=$true)][string]$Path) {
     if ($Path.ToLower().EndsWith(".webp")) {
-        # only the first 21 bytes are needed to determine whether webp file is an animation
-        [byte[]]$bytes = Get-Content -LiteralPath $Path -AsByte -TotalCount 21
-        $header = [System.Text.Encoding]::ASCII.GetString($bytes[12..15])
+        [byte[]]$bytes = [byte[]]::CreateInstance([byte], 4)
+
+        $reader = New-Object System.IO.BinaryReader((New-Object System.IO.FileStream($Path, "Open")))
+
+        # read header bytes
+        [void]$reader.BaseStream.Seek(12, "Begin")
+        [void]$reader.Read($bytes, 0, 4)
+
+        $header = [System.Text.Encoding]::ASCII.GetString($bytes)
 
         if ($header -eq "VP8X") {
-            # check byte 21 for animation flag
-            return ((($bytes[20] -shr 1) -band 1) -eq 1)
+            [void]$reader.BaseStream.Seek(4, "Current")
+            $b = [byte]$reader.ReadByte()
+            $reader.Close()
+            return ((($b -shr 1) -band 1) -eq 1)
         }
+
+        $reader.Close()
     }
 
     return $false
